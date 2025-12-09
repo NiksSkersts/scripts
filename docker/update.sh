@@ -1,3 +1,5 @@
+# This script expects that on the current dir there will be a dir for each docker compose project.
+# Script will enter each dir and run pull && up -d for each of them in parallel.
 #!/bin/bash
 
 # ANSI color codes
