@@ -17,9 +17,9 @@ for dir in */ ; do
         echo -e "$(timestamp) ${YELLOW}Starting update in $dir...${NC}"
         (
             cd "$dir" || exit
-            docker compose -f compose.yml pull >/dev/null 2>&1
+            docker compose pull >/dev/null 2>&1
             pull_status=$?
-            docker compose -f compose.yml up -d >/dev/null 2>&1
+            docker compose up -d >/dev/null 2>&1
             up_status=$?
 
             if [ $pull_status -eq 0 ] && [ $up_status -eq 0 ]; then
