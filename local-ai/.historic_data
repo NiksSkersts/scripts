@@ -1,8 +1,41 @@
 # Ollama benchmark: qwen3.5:4b, CPU vs iGPU vs dGPU
 
-> Note: GPU usage was observed during the iGPU test.
+> Note: GPU usage was observed during the iGPU test. Monitoring showed only the iGPU working while the model was running.
 
-**Host:** local-ai · **Ollama:** 0.40.16 · **Model:** qwen3.5:4b · **Runs:** 5 each (cold start requested)
+**Benchmark machine:** local-ai · **Ollama:** 0.40.16 · **Model:** qwen3.5:4b · **Runs:** 5 each (cold start requested)
+
+## Test system
+
+| Item       | Value |
+|------------|-------|
+| Host       | qianbei |
+| OS         | Proxmox VE 9.2 |
+| Kernel     | x86_64 Linux 7.0.14-25-pve |
+| CPU        | 12th Gen Intel Core i5-12600K, 16 threads, up to 4.9 GHz |
+| iGPU       | Integrated graphics of the i5-12600K |
+| RAM        | 96281 MiB total (52587 MiB in use when captured) |
+| Disk       | 20G / 8.6T used (1%) |
+| Shell      | bash 5.2.37 |
+| Packages   | 870 |
+| Uptime     | 42m when captured |
+| CPU temp   | 36.0 °C when captured |
+
+<details>
+<summary>Original system info output</summary>
+
+```text
+root@qianbei
+OS: Proxmox VE 9.2
+Kernel: x86_64 Linux 7.0.14-25-pve
+Uptime: 42m
+Packages: 870
+Shell: bash 5.2.37
+Disk: 20G / 8.6T (1%)
+CPU: 12th Gen Intel Core i5-12600K @ 16x 4.9GHz [36.0°C]
+RAM: 52587MiB / 96281MiB
+```
+
+</details>
 
 ## Shared settings
 
