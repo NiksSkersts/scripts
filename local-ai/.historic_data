@@ -1,3 +1,5 @@
+# Note GPU usage observed during iGPU test.
+
 root@local-ai:~# bash bench-ollama.sh \
   --model qwen3.5:4b \
   --runs 5 \
