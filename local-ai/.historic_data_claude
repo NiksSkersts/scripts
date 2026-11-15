@@ -159,14 +159,156 @@ The card supports up to 1,911 MHz GPU clock, and its power limit is 250 W.
 
 1. **Lower the power limit.**
    - Run, for example, `nvidia-smi -pl 200` (as root; it resets on reboot). Check the allowed range first with `nvidia-smi -q -d POWER`.
-   - Generation depends mostly on memory speed, so a lower limit should cost little speed while producing less heat and delaying the throttling.
-   - Re-run the benchmark with the monitor at 200 W and 180 W to find the best setting.
+   - This was tested at 180 W. It cost more speed than expected, but used much less energy. See [Power limit test: 180 W](#power-limit-test-180-w).
 2. **Improve the cooling.**
    - Clean the card's heatsink and fan, and check the airflow through the case.
    - A blower or older card at 84°C with the fan at only 51% often has room for improvement.
 3. **Use a steeper fan curve.**
    - On Linux this needs `nvidia-settings` with Coolbits and a running X server, which is awkward on a headless VM with the GPU passed through.
    - Options 1 and 2 are easier.
+
+## Power limit test: 180 W
+
+This is the same monitored benchmark as the 250 W re-run, but with the power limit set to 180 W (`nvidia-smi -pl 180`). The monitor log is `gpu-monitor-20261115-135203.csv`. The model was fully on the GPU, and the answer text was identical to the 250 W runs.
+
+| Run | Generation (tok/s) | Prompt (s) | Load (s) | Total (s) |
+|-----|--------------------|------------|----------|-----------|
+| 1   | 59.89              | 2.46       | 3.14     | 22.71     |
+| 2   | 59.22              | 2.50       | 2.21     | 22.02     |
+| 3   | 58.53              | 2.53       | 2.44     | 22.48     |
+| 4   | 57.74              | 2.56       | 2.42     | 22.73     |
+| 5   | 57.16              | 2.60       | 2.43     | 22.96     |
+
+### 250 W vs 180 W (median of 5 runs)
+
+| Metric                         | 250 W (default) | 180 W       | Change |
+|--------------------------------|-----------------|-------------|--------|
+| Generation speed               | 61.76 tok/s     | 58.53 tok/s | −5.2% |
+| Prompt processing speed        | 1,434 tok/s     | 1,292 tok/s | −10% |
+| Total time per run             | 21.39 s         | 22.71 s     | +6% |
+| Average power under load       | 223 W           | 171 W       | −23% |
+| Energy per run                 | ~4.9 kJ         | ~3.8 kJ     | −22% |
+| Tokens generated per kJ        | ~210            | ~270        | **+28%** |
+| Average GPU clock under load   | 1,785 MHz       | 1,628 MHz   | −9% |
+| Peak temperature               | 84°C            | 77°C        | −7°C |
+| Peak fan speed                 | 51%             | 43%         | −8 points |
+| Thermal-limit samples          | 12              | 0           | none |
+
+Energy per run is the sum of the 1-second power readings during each run, so it's an approximation.
+
+### Per run
+
+| Run | 250 W: tok/s | 250 W: temp | 250 W: avg clock | 180 W: tok/s | 180 W: temp | 180 W: avg clock |
+|-----|--------------|-------------|------------------|--------------|-------------|------------------|
+| 1   | 62.63        | 38 → 58°C   | 1,850 MHz        | 59.89        | 36 → 51°C   | 1,689 MHz        |
+| 2   | 62.00        | 53 → 70°C   | 1,827 MHz        | 59.22        | 48 → 60°C   | 1,652 MHz        |
+| 3   | 61.76        | 65 → 79°C   | 1,800 MHz        | 58.53        | 58 → 68°C   | 1,620 MHz        |
+| 4   | 61.12        | 74 → 84°C   | 1,773 MHz        | 57.74        | 66 → 74°C   | 1,603 MHz        |
+| 5   | 59.29        | 79 → 84°C   | 1,681 MHz        | 57.16        | 71 → 77°C   | 1,581 MHz        |
+
+### What it shows
+
+- **The thermal throttling is gone, but 180 W is slower in every run.**
+  - At 180 W the card never reached its 84°C limit and didn't throttle for heat once.
+  - Instead, it was held back by the power limit throughout (38 power-limit samples).
+  - Even in run 5, where the 250 W card was already throttling, 180 W was still slower: 57.16 against 59.29 tokens per second.
+- **The speed cost is larger than predicted.** Generation lost about 5%, not the "little" the earlier recommendation expected. So this workload depends on GPU clock more than assumed, not only on memory speed. Prompt processing, which depends more on compute, lost about 10%.
+- **It still slows down from run to run,** from 59.89 to 57.16 tokens per second. With a fixed power budget, the GPU clock drops as the chip warms up, from 1,689 to 1,581 MHz, because warmer silicon wastes more of its power.
+- **Efficiency is much better.**
+  - It used about 22% less energy for the same job and produced 28% more tokens per kilojoule.
+  - It also ran 7°C cooler with the fan at most 43%, so it was quieter.
+
+### Which limit to use
+
+| Priority | Setting |
+|----------|---------|
+| Fastest replies | **250 W (default).** It is about 5% faster even while it throttles. |
+| Lower power, heat and noise | **180 W.** It gives up about 5% speed for about 22% less energy and no thermal throttling. |
+| Balance | Try **210–220 W.** It is likely to keep most of the speed while staying below 84°C. This is untested, so run the same benchmark with the monitor to check. |
+
+- **Longer use: tested at 180 W only.** The 5-run tests lasted only about 2 minutes. The [long run below](#long-run-20-runs-at-180-w) shows that 180 W settles at about 56.4 tokens per second and 82°C. How 250 W behaves over a long run hasn't been measured yet.
+## Long run: 20 runs at 180 W
+
+This run was intended as a 200 W test. However, the monitor log (`gpu-monitor-20261115-140031.csv`) reports a **180.00 W power limit in every sample**, and power under load averaged 167 W. So the 200 W setting didn't take effect, and the card was still limited to 180 W.
+
+This makes it a 20-run, roughly 8-minute **long run at 180 W**, the longer test the previous section called for. The answer text was again identical in all runs.
+
+| Runs | Generation (tok/s) | GPU temp | Avg GPU clock | Fan (max) |
+|------|--------------------|----------|---------------|-----------|
+| 1    | 59.53              | 40 → 54°C | 1,678 MHz    | 20%       |
+| 2    | 58.93              | 52 → 63°C | 1,658 MHz    | 24%       |
+| 3    | 58.15              | 61 → 70°C | 1,628 MHz    | 34%       |
+| 4    | 57.54              | 68 → 75°C | 1,592 MHz    | 40%       |
+| 5    | 57.07              | 73 → 78°C | 1,587 MHz    | 44%       |
+| 6–10 | 56.43–56.60        | 76 → 82°C | 1,560–1,596 MHz | 45–49% |
+| 11–20 | 56.30–56.49       | 79 → 82°C | 1,536–1,581 MHz | 49–50% |
+
+| Summary | Value |
+|---------|-------|
+| Runs 1–5 median | 58.15 tok/s (matches the earlier 5-run 180 W test: 58.53) |
+| **Steady state, runs 6–20** | **56.42 tok/s**, prompt 2.65 s, total 23.13 s per run |
+| Peak temperature / fan | 82°C / 50% |
+| Average power under load | 167 W (brief spikes up to 214 W) |
+| Energy per run (steady state) | ~3.9 kJ |
+| Thermal or hardware slowdown | none recorded |
+
+**What the long run shows:**
+
+- **It settles after about 2 minutes.** From run 6 onwards generation stayed within 56.3–56.6 tokens per second, and the temperature held at 80–82°C. **About 56.4 tokens per second is the card's sustained speed at 180 W.** That's about 5% below the first run and about 9% below a cool card at 250 W (62.63).
+- **The 180 W limit doesn't keep the card much cooler over time.**
+  - After 2 minutes it was at 77°C, but over the long run it kept climbing to **82°C**, only 2°C below the 250 W peak.
+  - The fan stopped at 50% again, so the fan curve, not power, sets where the temperature ends up.
+  - It never crossed into thermal throttling, though, so the power limit was the only thing holding it back.
+- **Energy and speed both matched the earlier 180 W test.** It used about 3.9 kJ per run, the same as the 5-run 180 W test, and the first 5 runs were within 1% of it. The results are repeatable.
+
+The 200 W setting hadn't taken effect because the Ollama service wasn't restarted after the limit was changed.
+
+## Long run: 20 runs at 200 W
+
+This is the same 20-run test, repeated after restarting the service. The monitor log (`gpu-monitor-20261115-141210.csv`) confirms a **200.00 W limit** in every sample.
+- The model was fully on the GPU, and the answer text was identical in all 20 runs.
+- The card started at 47°C, still warm from the previous test, so run 1 doesn't start from a fully cold card.
+
+| Runs | Generation (tok/s) | GPU temp | Avg GPU clock | Fan (max) | Thermal-limit samples |
+|------|--------------------|----------|---------------|-----------|-----------------------|
+| 1    | 60.49              | 49 → 64°C | 1,729 MHz    | 24%       | 0 |
+| 2    | 59.78              | 61 → 72°C | 1,707 MHz    | 35%       | 0 |
+| 3    | 59.44              | 69 → 78°C | 1,671 MHz    | 43%       | 0 |
+| 4    | 59.03              | 75 → 81°C | 1,667 MHz    | 47%       | 0 |
+| 5    | 58.42              | 78 → 83°C | 1,646 MHz    | 49%       | 0 |
+| 6–10 | 57.33–58.03        | 81 → 84°C | 1,597–1,624 MHz | 51–52% | 5–12 per run |
+| 11–20 | 57.08–57.64       | 81 → 84°C | 1,584–1,619 MHz | 52–53% | 6–13 per run |
+
+- **It reaches 84°C in run 6 and throttles for heat from then on.** The thermal limit was active in about 30% of all loaded samples. So at 200 W the card runs into **both** limits: power during bursts, and temperature the rest of the time.
+- **It settles at about 57.4 tokens per second.** From run 6 onwards, generation stayed within 57.1–58.0.
+
+## Sustained comparison: 180 W vs 200 W (runs 6–20 of the long runs)
+
+| Metric (steady state) | 180 W | 200 W | Difference |
+|-----------------------|-------|-------|------------|
+| Generation speed      | 56.42 tok/s | 57.44 tok/s | 200 W +1.8% |
+| Prompt processing     | 2.65 s | 2.55 s | 200 W −4% |
+| Total per run         | 23.13 s | 22.72 s | 200 W −0.4 s |
+| Average power under load | 167 W | 182 W | +15 W |
+| Energy per run        | ~3.9 kJ | ~4.1 kJ | 200 W +6% |
+| Temperature (steady)  | 80–82°C | 81–84°C | |
+| Thermal throttling    | none | ~30% of samples | |
+| Fan (max)             | 50% | 53% | |
+
+**What this shows:**
+
+- **The extra 20 W gives almost nothing.** Over a sustained run, 200 W is only 1.8% faster at generating and 4% faster at reading prompts, but uses about 6% more energy.
+  - Most of the extra power just pushes the card to 84°C, where it throttles back down.
+  - **Cooling, not the power limit, is what really holds this card back.**
+- **At 180 W the card runs just below its temperature limit.** It settles around 82°C and is limited only by power. That's the cleanest operating point on this card's current cooling.
+- **250 W is likely to end up close to 200 W over a long run.** At 250 W the card already reached 84°C in run 4 and was throttling for heat in the 5-run test. Since 200 W is already capped by temperature, it's likely to settle only slightly higher, but a 20-run test at 250 W would confirm it.
+- **The fan stays at about 50–53% even at 84°C.** A steeper fan curve or cleaner cooling would let the card hold higher clocks at any power limit, and would likely help more than raising the limit.
+
+**Recommendation:** **180 W** for everyday use. It gives up only about 2% speed against 200 W over long use, never overheats and uses the least energy. Use 250 W only when short bursts of maximum speed matter.
+
+- **Power limit reminder:** after changing it with `nvidia-smi -pl`, restart Ollama (`systemctl restart ollama`) before testing. Then check the `power_limit_w` column in the monitor log.
+
+- **Making the limit permanent:** `nvidia-smi -pl` resets on reboot. To keep a limit, apply it at boot, for example with a systemd oneshot unit that runs `nvidia-smi -pm 1` and `nvidia-smi -pl <W>`. Restore the default with `nvidia-smi -pl 250`.
 
 ## Observations
 
@@ -209,7 +351,10 @@ The iGPU read prompts about 3 times slower than the CPU, so this test's long pro
 
 For qwen3.5:4b on this machine, the **GTX 1080 Ti is the clear choice**. It is 7.6x faster than the CPU overall and 14x faster at reading long prompts. With this prompt, that's the difference between a reply in about 2 seconds and one in about 30. The CPU works as a fallback but feels slow for interactive use, especially with long prompts or documents. The iGPU isn't worth using for this workload.
 
-Under sustained load the 1080 Ti reaches its 84°C limit after about a minute and loses about 5% generation speed. Lowering its power limit or improving its cooling should recover most of that.
+Under sustained load the 1080 Ti reaches its 84°C limit after about a minute and loses about 5% generation speed.
+- **Lowering the power limit is a trade-off, not a fix.** At 180 W the throttling disappears and the card uses about 22% less energy, but it's still about 5% slower than at 250 W.
+- **For speed, keep 250 W** and improve the cooling.
+- **For efficiency and quieter running, use 180 W.** The 20-run tests showed 200 W is only 1.8% faster over sustained use, because it throttles for heat at 84°C. A 210–220 W middle ground isn't worth testing.
 
 ---
 
@@ -450,4 +595,87 @@ Run 5/5 [dGPU-GTX1080Ti-max]
   "results_file": "dgpu-max-results.jsonl"
 }
 root@local-ai:~#
+```
+
+### dGPU at 180 W power limit (monitored)
+
+```text
+root@local-ai:~# bash bench-ollama.sh \
+  --model qwen3.5:4b \
+  --prompt-file max-prompt.txt \
+  --runs 5 \
+  --label dGPU-GTX1080Ti-max \
+  --context 8192 \
+  --tokens 1024 \
+  --threads 6 \
+  --gpu-layers 999 \
+  --output dgpu-max-results.jsonl
+Model: qwen3.5:4b | Runs: 5 | Cold: true | Ollama: 0.40.16
+Results: dgpu-max-results.jsonl
+
+Run 1/5 [dGPU-GTX1080Ti-max]
+  Generation: 59.89 tokens/s | Total: 22.71s | Load: 3.14s | Tokens: 1024 | Truncated: true
+
+Run 2/5 [dGPU-GTX1080Ti-max]
+  Generation: 59.22 tokens/s | Total: 22.02s | Load: 2.21s | Tokens: 1024 | Truncated: true
+
+Run 3/5 [dGPU-GTX1080Ti-max]
+  Generation: 58.53 tokens/s | Total: 22.48s | Load: 2.44s | Tokens: 1024 | Truncated: true
+
+Run 4/5 [dGPU-GTX1080Ti-max]
+  Generation: 57.74 tokens/s | Total: 22.73s | Load: 2.42s | Tokens: 1024 | Truncated: true
+
+Run 5/5 [dGPU-GTX1080Ti-max]
+  Generation: 57.16 tokens/s | Total: 22.96s | Load: 2.43s | Tokens: 1024 | Truncated: true
+{
+  "model": "qwen3.5:4b",
+  "label": "dGPU-GTX1080Ti-max",
+  "ollama_version": "0.40.16",
+  "runs": 5,
+  "cold_start_requested": true,
+  "settings": {
+    "think": false,
+    "keep_alive": "10m",
+    "options": {
+      "num_ctx": 8192,
+      "num_predict": 1024,
+      "temperature": 0,
+      "seed": 42,
+      "num_thread": 6,
+      "num_gpu": 999
+    }
+  },
+  "generation_tokens_per_second": {
+    "min": 57.16192600411008,
+    "median": 58.53133338321452,
+    "mean": 58.50803703586168,
+    "max": 59.88501959275263
+  },
+  "total_seconds": {
+    "min": 22.015812365,
+    "median": 22.713929512,
+    "mean": 22.581214140999997,
+    "max": 22.960618275
+  },
+  "load_seconds": {
+    "min": 2.210749761,
+    "median": 2.434033066,
+    "mean": 2.530121338,
+    "max": 3.138615495
+  },
+  "prompt_seconds": {
+    "min": 2.455876,
+    "median": 2.528505,
+    "mean": 2.5283697999999997,
+    "max": 2.595595
+  },
+  "output_tokens": {
+    "min": 1024,
+    "median": 1024,
+    "mean": 1024,
+    "max": 1024
+  },
+  "truncated_runs": 5,
+  "results_file": "dgpu-max-results.jsonl"
+}
 ```
