@@ -1,4 +1,4 @@
-# Ollama benchmark: qwen3.5:4b, CPU vs iGPU
+# Ollama benchmark: qwen3.5:4b, CPU vs iGPU vs dGPU
 
 > Note: GPU usage was observed during the iGPU test.
 
@@ -15,18 +15,19 @@
 | temperature  | 0     |
 | seed         | 42    |
 | num_thread   | 6     |
-| num_gpu      | **0** (CPU) / **999** (iGPU) |
+| num_gpu      | **0** (CPU) / **999** (iGPU, dGPU) |
 
 ## Summary (median of 5 runs)
 
-| Metric                | CPU        | iGPU       | Difference |
-|-----------------------|------------|------------|------------|
-| Generation speed      | 9.69 tok/s | 6.86 tok/s | iGPU ~29% slower |
-| Total time            | 42.37 s    | 61.53 s    | +19.2 s |
-| Load time             | 2.05 s     | 2.15 s     | about the same |
-| Prompt processing     | 0.35 s     | 1.06 s     | iGPU ~3x slower |
-| Output tokens         | 387        | 400        | — |
-| Truncated runs        | 0 / 5      | 5 / 5      | iGPU hit the 400-token limit |
+| Metric                | CPU        | iGPU       | dGPU        |
+|-----------------------|------------|------------|-------------|
+| Generation speed      | 9.69 tok/s | 6.86 tok/s | 63.70 tok/s |
+| Speed vs CPU          | 1.0x       | 0.71x      | 6.6x        |
+| Total time            | 42.37 s    | 61.53 s    | 8.81 s      |
+| Load time             | 2.05 s     | 2.15 s     | 2.43 s      |
+| Prompt processing     | 0.35 s     | 1.06 s     | 0.08 s      |
+| Output tokens         | 387        | 400        | 400         |
+| Truncated runs        | 0 / 5      | 5 / 5      | 5 / 5       |
 
 ## CPU runs
 
@@ -80,11 +81,40 @@ bash bench-ollama.sh --model qwen3.5:4b --runs 5 --label iGPU \
 
 Results file: `igpu-results.jsonl`
 
+## dGPU runs
+
+Command:
+
+```bash
+bash bench-ollama.sh --model qwen3.5:4b --runs 5 --label dGPU \
+  --gpu-layers 999 --threads 6 --output dgpu-results.jsonl
+```
+
+| Run | Generation (tok/s) | Total (s) | Load (s) | Tokens | Truncated |
+|-----|--------------------|-----------|----------|--------|-----------|
+| 1   | 64.12              | 8.86      | 2.54     | 400    | yes       |
+| 2   | 63.86              | 8.54      | 2.19     | 400    | yes       |
+| 3   | 63.41              | 8.84      | 2.44     | 400    | yes       |
+| 4   | 63.70              | 8.57      | 2.21     | 400    | yes       |
+| 5   | 63.46              | 8.81      | 2.43     | 400    | yes       |
+
+| Stat   | Generation (tok/s) | Total (s) | Load (s) | Prompt (s) |
+|--------|--------------------|-----------|----------|------------|
+| Min    | 63.41              | 8.54      | 2.19     | 0.081      |
+| Median | 63.70              | 8.81      | 2.43     | 0.082      |
+| Mean   | 63.71              | 8.72      | 2.36     | 0.082      |
+| Max    | 64.12              | 8.86      | 2.54     | 0.083      |
+
+Results file: `dgpu-results.jsonl`
+
 ## Observations
 
+- The dGPU is far ahead of the others. It generates about 6.6x faster than the CPU and about 9.3x faster than the iGPU, and it processes the prompt about 4x faster than the CPU and about 13x faster than the iGPU.
 - On this machine the CPU (6 threads) is faster than the iGPU for this model, both for generation and prompt processing.
-- Both setups are very consistent: run-to-run spread is under 1%.
-- Even with temperature 0 and a fixed seed, the two backends produced **different output**. The CPU finished naturally at 387 tokens, while every iGPU run hit the 400-token cap. So the total-time figures aren't a perfect like-for-like comparison. Tokens/s is the fairer number to compare.
+- Load time is about 2–2.5 s on all three. The dGPU is slightly slower and varies a little more, with runs alternating between about 2.2 s and 2.5 s.
+- All three setups are very consistent: run-to-run spread in generation speed is about 1% or less.
+- Even with temperature 0 and a fixed seed, the CPU produced **different output** from the two GPU backends. It finished naturally at 387 tokens, while every iGPU and dGPU run hit the 400-token cap. So total time compares fairly between iGPU and dGPU but not against the CPU. Tokens/s is the fairer number to compare across all three.
+- The iGPU and dGPU tests used identical flags (`--gpu-layers 999`). The label is the only thing that tells them apart, so the results files are the only record of which GPU each test used.
 
 ---
 
@@ -245,6 +275,82 @@ Run 5/5 [iGPU]
   },
   "truncated_runs": 5,
   "results_file": "igpu-results.jsonl"
+}
+
+root@local-ai:~# bash bench-ollama.sh \
+  --model qwen3.5:4b \
+  --runs 5 \
+  --label dGPU \
+  --gpu-layers 999 \
+  --threads 6 \
+  --output dgpu-results.jsonl
+Model: qwen3.5:4b | Runs: 5 | Cold: true | Ollama: 0.40.16
+Results: dgpu-results.jsonl
+
+Run 1/5 [dGPU]
+  Generation: 64.12 tokens/s | Total: 8.86s | Load: 2.54s | Tokens: 400 | Truncated: true
+
+Run 2/5 [dGPU]
+  Generation: 63.86 tokens/s | Total: 8.54s | Load: 2.19s | Tokens: 400 | Truncated: true
+
+Run 3/5 [dGPU]
+  Generation: 63.41 tokens/s | Total: 8.84s | Load: 2.44s | Tokens: 400 | Truncated: true
+
+Run 4/5 [dGPU]
+  Generation: 63.7 tokens/s | Total: 8.57s | Load: 2.21s | Tokens: 400 | Truncated: true
+
+Run 5/5 [dGPU]
+  Generation: 63.46 tokens/s | Total: 8.81s | Load: 2.43s | Tokens: 400 | Truncated: true
+{
+  "model": "qwen3.5:4b",
+  "label": "dGPU",
+  "ollama_version": "0.40.16",
+  "runs": 5,
+  "cold_start_requested": true,
+  "settings": {
+    "think": false,
+    "keep_alive": "10m",
+    "options": {
+      "num_ctx": 8192,
+      "num_predict": 400,
+      "temperature": 0,
+      "seed": 42,
+      "num_thread": 6,
+      "num_gpu": 999
+    }
+  },
+  "generation_tokens_per_second": {
+    "min": 63.40658537625388,
+    "median": 63.69505863289385,
+    "mean": 63.70798963651829,
+    "max": 64.123404208932
+  },
+  "total_seconds": {
+    "min": 8.535022638,
+    "median": 8.811776787,
+    "mean": 8.7232889512,
+    "max": 8.859606082
+  },
+  "load_seconds": {
+    "min": 2.186609168,
+    "median": 2.425506057,
+    "mean": 2.3612964344,
+    "max": 2.539238671
+  },
+  "prompt_seconds": {
+    "min": 0.080683,
+    "median": 0.081745,
+    "mean": 0.0817666,
+    "max": 0.082884
+  },
+  "output_tokens": {
+    "min": 400,
+    "median": 400,
+    "mean": 400,
+    "max": 400
+  },
+  "truncated_runs": 5,
+  "results_file": "dgpu-results.jsonl"
 }
 root@local-ai:~#
 ```
