@@ -1,0 +1,106 @@
+root@local-ai:~# bash bench-ollama.sh \
+  --model qwen3.5:4b \
+  --runs 5 \
+  --label CPU \
+  --gpu-layers 0 \
+  --threads 6 \
+  --output cpu-results.jsonl
+Model: qwen3.5:4b | Runs: 5 | Cold: true | Ollama: 0.40.16
+Results: cpu-results.jsonl
+
+Run 1/5 [CPU]
+  Generation: 9.63 tokens/s | Total: 42.59s | Load: 2.05s | Tokens: 387 | Truncated: false
+
+Run 2/5 [CPU]
+  Generation: 9.69 tokens/s | Total: 42.37s | Load: 2.05s | Tokens: 387 | Truncated: false
+
+Run 3/5 [CPU]
+  Generation: 9.63 tokens/s | Total: 42.63s | Load: 2.05s | Tokens: 387 | Truncated: false
+
+Run 4/5 [CPU]
+  Generation: 9.69 tokens/s | Total: 42.33s | Load: 2.05s | Tokens: 387 | Truncated: false
+
+Run 5/5 [CPU]
+  Generation: 9.69 tokens/s | Total: 42.32s | Load: 2.04s | Tokens: 387 | Truncated: false
+{
+  "model": "qwen3.5:4b",
+  "label": "CPU",
+  "ollama_version": "0.40.16",
+  "runs": 5,
+  "cold_start_requested": true,
+  "settings": {
+    "think": false,
+    "keep_alive": "10m",
+    "options": {
+      "num_ctx": 8192,                                                                                                                                                       "num_predict": 400,                                                                                                                                                    "temperature": 0,                                                                                                                                                      "seed": 42,                                                                                                                                                            "num_thread": 6,                                                                                                                                                       "num_gpu": 0                                                                                                                                                         }                                                                                                                                                                    },                                                                                                                                                                     "generation_tokens_per_second": {                                                                                                                                        "min": 9.628346329278797,                                                                                                                                              "median": 9.691293001794618,                                                                                                                                           "mean": 9.66728965297788,                                                                                                                                              "max": 9.693118862433604                                                                                                                                             },                                                                                                                                                                     "total_seconds": {                                                                                                                                                       "min": 42.32237479,
+    "median": 42.366450634,                                                                                                                                                "mean": 42.447326644200004,                                                                                                                                            "max": 42.632447654                                                                                                                                                  },                                                                                                                                                                     "load_seconds": {                                                                                                                                                        "min": 2.044852727,                                                                                                                                                    "median": 2.048936674,                                                                                                                                                 "mean": 2.048873574,                                                                                                                                                   "max": 2.051487265                                                                                                                                                   },                                                                                                                                                                     "prompt_seconds": {                                                                                                                                                      "min": 0.342626,                                                                                                                                                       "median": 0.350897,                                                                                                                                                    "mean": 0.36450899999999997,                                                                                                                                           "max": 0.399738                                                                                                                                                      },
+  "output_tokens": {                                                                                                                                                       "min": 387,                                                                                                                                                            "median": 387,                                                                                                                                                         "mean": 387,                                                                                                                                                           "max": 387                                                                                                                                                           },                                                                                                                                                                     "truncated_runs": 0,                                                                                                                                                   "results_file": "cpu-results.jsonl"                                                                                                                                  }                                                                                                                                                                      root@local-ai:~# bash bench-ollama.sh \
+                                                                                                                                  --model qwen3.5:4b \                                                                                                                                                   --runs 5 \                                                                                                                                                             --label iGPU \                                                                                                                                                         --gpu-layers 999 \                                                                                                                                                     --threads 6 \                                                                                                                                                          --output igpu-results.jsonl
+Model: qwen3.5:4b | Runs: 5 | Cold: true | Ollama: 0.40.16
+Results: igpu-results.jsonl
+
+Run 1/5 [iGPU]  Generation: 6.86 tokens/s | Total: 61.5s | Load: 2.12s | Tokens: 400 | Truncated: true
+
+Run 2/5 [iGPU]
+  Generation: 6.86 tokens/s | Total: 61.53s | Load: 2.13s | Tokens: 400 | Truncated: true
+
+Run 3/5 [iGPU]
+  Generation: 6.87 tokens/s | Total: 61.4s | Load: 2.15s | Tokens: 400 | Truncated: true
+
+Run 4/5 [iGPU]
+  Generation: 6.86 tokens/s | Total: 61.75s | Load: 2.38s | Tokens: 400 | Truncated: true
+
+Run 5/5 [iGPU]
+  Generation: 6.86 tokens/s | Total: 61.73s | Load: 2.37s | Tokens: 400 | Truncated: true
+{
+  "model": "qwen3.5:4b",
+  "label": "iGPU",
+  "ollama_version": "0.40.16",
+  "runs": 5,
+  "cold_start_requested": true,
+  "settings": {
+    "think": false,
+    "keep_alive": "10m",
+    "options": {
+      "num_ctx": 8192,
+      "num_predict": 400,
+      "temperature": 0,
+      "seed": 42,
+      "num_thread": 6,
+      "num_gpu": 999
+    }
+  },
+  "generation_tokens_per_second": {
+    "min": 6.858267573834866,
+    "median": 6.860647589561209,
+    "mean": 6.862672451712328,
+    "max": 6.874336003588954
+  },
+  "total_seconds": {
+    "min": 61.399287975,
+    "median": 61.534211655,
+    "mean": 61.5828152424,
+    "max": 61.747675146
+  },
+  "load_seconds": {
+    "min": 2.12467183,
+    "median": 2.151220897,
+    "mean": 2.2313911806,
+    "max": 2.380726361
+  },
+  "prompt_seconds": {
+    "min": 1.053825,
+    "median": 1.059178,
+    "mean": 1.0635392,
+    "max": 1.086424
+  },
+  "output_tokens": {
+    "min": 400,
+    "median": 400,
+    "mean": 400,
+    "max": 400
+  },
+  "truncated_runs": 5,
+  "results_file": "igpu-results.jsonl"
+}
+root@local-ai:~#
