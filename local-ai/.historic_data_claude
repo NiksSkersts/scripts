@@ -1,0 +1,453 @@
+# Ollama max-load benchmark: qwen3.5:4b, CPU vs dGPU
+
+**Date:** 2026-11-15 · **Benchmark machine:** local-ai · **Ollama:** 0.40.16 · **Model:** qwen3.5:4b · **Runs:** 5 each (cold start)
+
+This is a heavier follow-up to the short refrigerator-prompt test in `bench-ollama-results.md`. It uses a long prompt and a long output, so prompt processing and sustained generation both get properly loaded. Every run generated exactly the same number of tokens, so total times compare directly.
+
+## Result
+
+| Metric (median of 5 runs) | CPU (i5-12600K, 6 threads) | dGPU (GTX 1080 Ti) | dGPU advantage |
+|---------------------------|----------------------------|--------------------|----------------|
+| Generation speed          | 8.03 tok/s                 | 61.17 tok/s        | **7.6x faster** |
+| Prompt processing speed   | 101 tok/s                  | 1,424 tok/s        | **14x faster** |
+| Prompt processing time    | 32.38 s                    | 2.29 s             | −30.1 s |
+| Generation time           | 127.45 s                   | 16.74 s            | −110.7 s |
+| Load time                 | 2.05 s                     | 2.28 s             | about the same |
+| **Total time per run**    | **162.13 s**               | **21.33 s**        | **7.6x faster** |
+| Input / output tokens     | 3,266 / 1,024              | 3,266 / 1,024      | identical work |
+| Hit the token limit       | 5 / 5                      | 5 / 5              | as intended |
+
+**The GTX 1080 Ti finishes the same job in about 21 seconds; the CPU takes about 2 minutes 42 seconds.**
+
+The dGPU test was run a second time with temperature and clock logging. Its medians came out within 1% of the first run (61.76 tok/s, 21.39 s total). The log shows why the card slows down from run to run: it heats up to its temperature limit. See [dGPU temperature and clocks](#dgpu-temperature-and-clocks).
+
+The iGPU was not tested this time. See [iGPU](#igpu-not-tested) below.
+
+## Test system
+
+| Item     | Value |
+|----------|-------|
+| Host     | qianbei, Proxmox VE 9.2, kernel 7.0.14-25-pve |
+| CPU      | 12th Gen Intel Core i5-12600K, 16 threads, up to 4.9 GHz |
+| RAM      | DDR4, 96281 MiB total |
+| iGPU     | Integrated graphics of the i5-12600K (not tested in this round) |
+| dGPU     | NVIDIA GeForce GTX 1080 Ti |
+
+## Test settings
+
+| Setting      | Value |
+|--------------|-------|
+| Prompt       | `max-prompt.txt`: code-review request + full `bench-ollama.sh` (3,266 tokens) |
+| num_ctx      | 8192 |
+| num_predict  | 1024 |
+| temperature  | 0 |
+| seed         | 42 |
+| think        | false |
+| num_thread   | 6 |
+| num_gpu      | **0** (CPU) / **999** (dGPU) |
+| keep_alive   | 10m |
+| Cold start   | yes, model unloaded before every run |
+
+The prompt asks for at least 2,000 words, which is far more than 1,024 tokens. So every run is cut off at exactly 1,024 tokens, and both backends do the same amount of work.
+
+## Placement checks
+
+| Backend | Observed during test | Results file (`size_vram` / `size`) |
+|---------|----------------------|-------------------------------------|
+| CPU     | Only the CPU was working. `intel_gpu_top` and `nvidia-smi` showed no GPU usage, and `ollama ps` showed 100% CPU. | 0 / 3,376,404,232 bytes: nothing on a GPU |
+| dGPU    | Re-run: 100% GPU, confirmed with `nvidia-smi` | 3,364,911,840 / 3,364,911,840 bytes: whole model on the GPU |
+
+## CPU runs
+
+```bash
+bash bench-ollama.sh --model qwen3.5:4b --prompt-file max-prompt.txt --runs 5 \
+  --label CPU-i5-12600K-max --context 8192 --tokens 1024 --threads 6 \
+  --gpu-layers 0 --output cpu-max-results.jsonl
+```
+
+| Run | Generation (tok/s) | Prompt (s) | Prompt (tok/s) | Generation (s) | Load (s) | Total (s) |
+|-----|--------------------|------------|----------------|----------------|----------|-----------|
+| 1   | 8.04               | 30.57      | 106.8          | 127.29         | 2.05     | 159.92    |
+| 2   | 8.02               | 32.38      | 100.9          | 127.69         | 2.05     | 162.13    |
+| 3   | 8.03               | 35.20      | 92.8           | 127.45         | 2.05     | 164.72    |
+| 4   | 8.05               | 34.77      | 93.9           | 127.14         | 2.05     | 163.97    |
+| 5   | 8.03               | 30.32      | 107.7          | 127.51         | 2.05     | 159.90    |
+
+| Stat   | Generation (tok/s) | Total (s) | Load (s) | Prompt (s) |
+|--------|--------------------|-----------|----------|------------|
+| Min    | 8.02               | 159.90    | 2.05     | 30.32      |
+| Median | 8.03               | 162.13    | 2.05     | 32.38      |
+| Mean   | 8.04               | 162.13    | 2.05     | 32.65      |
+| Max    | 8.05               | 164.72    | 2.05     | 35.20      |
+
+Results file: `cpu-max-results.jsonl`
+
+## dGPU runs
+
+```bash
+bash bench-ollama.sh --model qwen3.5:4b --prompt-file max-prompt.txt --runs 5 \
+  --label dGPU-GTX1080Ti-max --context 8192 --tokens 1024 --threads 6 \
+  --gpu-layers 999 --output dgpu-max-results.jsonl
+```
+
+| Run | Generation (tok/s) | Prompt (s) | Prompt (tok/s) | Generation (s) | Load (s) | Total (s) |
+|-----|--------------------|------------|----------------|----------------|----------|-----------|
+| 1   | 62.33              | 2.23       | 1,463          | 16.43          | 2.12     | 20.79     |
+| 2   | 61.75              | 2.26       | 1,444          | 16.58          | 2.44     | 21.30     |
+| 3   | 61.17              | 2.29       | 1,424          | 16.74          | 2.28     | 21.33     |
+| 4   | 60.17              | 2.35       | 1,393          | 17.02          | 2.21     | 21.59     |
+| 5   | 59.02              | 2.35       | 1,391          | 17.35          | 2.44     | 22.15     |
+
+| Stat   | Generation (tok/s) | Total (s) | Load (s) | Prompt (s) |
+|--------|--------------------|-----------|----------|------------|
+| Min    | 59.02              | 20.79     | 2.12     | 2.23       |
+| Median | 61.17              | 21.33     | 2.28     | 2.29       |
+| Mean   | 60.89              | 21.43     | 2.30     | 2.30       |
+| Max    | 62.33              | 22.15     | 2.44     | 2.35       |
+
+Results file: `dgpu-max-results.jsonl`
+
+## dGPU re-run with monitoring
+
+Same command and settings, with `gpu-monitor.sh` logging the card once a second (`gpu-monitor-20261115-133756.csv`). During the test the GPU was running at 100%, which `nvidia-smi` confirmed.
+
+| Run | Generation (tok/s) | Prompt (s) | Generation (s) | Load (s) | Total (s) |
+|-----|--------------------|------------|----------------|----------|-----------|
+| 1   | 62.63              | 2.21       | 16.35          | 2.59     | 21.16     |
+| 2   | 62.00              | 2.24       | 16.52          | 2.39     | 21.17     |
+| 3   | 61.76              | 2.28       | 16.58          | 2.52     | 21.39     |
+| 4   | 61.12              | 2.31       | 16.76          | 2.44     | 21.52     |
+| 5   | 59.29              | 2.34       | 17.27          | 2.17     | 21.80     |
+
+| Stat   | Generation (tok/s) | Total (s) | Load (s) | Prompt (s) |
+|--------|--------------------|-----------|----------|------------|
+| Min    | 59.29              | 21.16     | 2.17     | 2.21       |
+| Median | 61.76              | 21.39     | 2.44     | 2.28       |
+| Mean   | 61.36              | 21.41     | 2.42     | 2.28       |
+| Max    | 62.63              | 21.80     | 2.59     | 2.34       |
+
+- **The re-run matches the first run:** medians within 1%, the same slowdown from run to run, and exactly the same answer text.
+
+## dGPU temperature and clocks
+
+GPU readings from the log, matched to each run. Only samples with GPU utilisation of 50% or more are included.
+
+| Run | Generation (tok/s) | GPU temp (°C) | Avg GPU clock (MHz) | Lowest GPU clock (MHz) | Avg power (W) | Fan (max) | Power-limit samples | Thermal-limit samples |
+|-----|--------------------|---------------|---------------------|------------------------|---------------|-----------|---------------------|-----------------------|
+| 1   | 62.63              | 38 → 58       | 1,850               | 1,733                  | 225           | 20%       | 0                   | 0                     |
+| 2   | 62.00              | 53 → 70       | 1,827               | 1,721                  | 228           | 31%       | 3                   | 0                     |
+| 3   | 61.76              | 65 → 79       | 1,800               | 1,683                  | 235           | 43%       | 3                   | 0                     |
+| 4   | 61.12              | 74 → 84       | 1,773               | 1,657                  | 226           | 50%       | 8                   | 4                     |
+| 5   | 59.29              | 79 → 84       | 1,681               | 1,620                  | 203           | 51%       | 0                   | 9                     |
+
+The card supports up to 1,911 MHz GPU clock, and its power limit is 250 W.
+
+**What the log shows:**
+
+- **It's thermal throttling.** The card started at 35°C idle and climbed about 10–15°C per run until it reached **84°C during run 4**. It then stayed at 83–84°C, which is where the card holds its temperature by lowering its clock.
+  - In run 5 the thermal limit was active in 9 of 21 loaded samples.
+  - The GPU clock fell to 1,620–1,770 MHz, about 9% below run 1.
+  - Power dropped to about 200 W, well under the 250 W limit, so power was no longer what held it back.
+  - No hardware slowdown or power-brake events were recorded, so this is the card's normal temperature control, not a fault.
+- **In runs 2–4 the power limit also briefly kicked in.** This happened during prompt processing, when the card drew up to its 250 W limit. That's normal for a 1080 Ti under full load.
+- **The fan responds slowly and stops at about 51%.** It started at 20% and reached only 51% once the card was already at 84°C. The card's built-in behaviour is to lower its clock rather than spin the fan faster, so the fan settings leave room for improvement.
+- **The memory clock stayed at 5,005 MHz throughout,** in performance state P2. In one brief P0 sample it read 5,508 MHz. GeForce cards often run compute workloads in P2 with a lower memory clock than in P0.
+- **Generation slowed less than the GPU clock did:** −5% against −9%. Generation depends on memory speed more than GPU clock, and the memory clock didn't change, so thermal throttling hurts this workload less than the clock drop suggests.
+- **Cool-down:** after the test the card fell from 84°C to 63°C in about 35 seconds, with the fan coming back down from 51% to 43%.
+
+**What can help, in order of effort:**
+
+1. **Lower the power limit.**
+   - Run, for example, `nvidia-smi -pl 200` (as root; it resets on reboot). Check the allowed range first with `nvidia-smi -q -d POWER`.
+   - Generation depends mostly on memory speed, so a lower limit should cost little speed while producing less heat and delaying the throttling.
+   - Re-run the benchmark with the monitor at 200 W and 180 W to find the best setting.
+2. **Improve the cooling.**
+   - Clean the card's heatsink and fan, and check the airflow through the case.
+   - A blower or older card at 84°C with the fan at only 51% often has room for improvement.
+3. **Use a steeper fan curve.**
+   - On Linux this needs `nvidia-settings` with Coolbits and a running X server, which is awkward on a headless VM with the GPU passed through.
+   - Options 1 and 2 are easier.
+
+## Observations
+
+### Speed
+
+- **The dGPU is 7.6x faster overall.** For a long-prompt, long-answer job like this one, that means about 21 seconds against about 2 minutes 42 seconds.
+- **The long prompt makes the gap wider.** The dGPU reads the prompt 14 times faster than the CPU, compared with 7.6 times for generation. Reading a prompt is limited by how fast the hardware can compute, which is where a GPU has the biggest edge. On the CPU, reading the prompt took 32 seconds, about a fifth of each run. On the dGPU it took just over 2 seconds.
+- **Longer context slows generation down, the CPU more than the dGPU.** Compared with the short refrigerator test, CPU generation fell from 9.69 to 8.03 tokens per second (−17%). The dGPU fell from 63.70 to 61.17 (−4%). Every new token has to take the whole 3,000+ token context into account, which costs the CPU much more than the GPU.
+
+### Consistency
+
+- **CPU generation is very steady:** 8.02–8.05 tokens per second across all 5 runs, a spread of 0.4%.
+- **CPU prompt processing varies by about 15%** (30.3–35.2 s) with no trend. That points to other activity on the Proxmox host competing for CPU or memory bandwidth, not to a problem with the test.
+- **The dGPU got slightly slower with every run.** Generation dropped 62.33 → 61.75 → 61.17 → 60.17 → 59.02 tokens per second, about 5% over the 5 runs. Prompt processing dropped at the same time, 1,463 → 1,391 tokens per second.
+  - The monitored re-run showed the same pattern and confirmed the cause: the card heats up to its 84°C limit and lowers its clock to stay there. See [dGPU temperature and clocks](#dgpu-temperature-and-clocks).
+  - Under sustained use, expect about 59 tokens per second rather than 62.
+
+### Output
+
+- **Repeatable:** each backend produced the same answer in all 5 of its runs.
+- **CPU and dGPU answers differ:** they are identical for the first 27 words, then go different ways.
+  - This is the same effect as in the short test. The two backends round numbers very slightly differently, and once that tips the choice of a single word, the rest of the text follows a different path.
+  - Neither answer is "more accurate" for this reason. Both are code reviews of similar length (668 and 671 words) with the same structure.
+- **Neither answer is a reliable code review.** Both contain wrong findings. For example, one flags a "bug" in the `--runs` check that isn't one, and both make questionable claims about `set -u` and how the script builds its JSON. A 4B model isn't good enough for this task, but that doesn't affect the speed comparison.
+
+## iGPU (not tested)
+
+The iGPU wasn't run in this round, because switching the setup over to it again would have taken too long.
+
+For reference, in the short test it was the slowest of the three:
+
+| Short test (26-token prompt, 400 tokens out) | CPU | iGPU | dGPU |
+|----------------------------------------------|-----|------|------|
+| Generation (tok/s)                           | 9.69 | 6.86 | 63.70 |
+| Prompt processing (s)                        | 0.35 | 1.06 | 0.08 |
+
+The iGPU read prompts about 3 times slower than the CPU, so this test's long prompt would most likely leave it even further behind. It would almost certainly have come last again, but there is no measurement of by how much.
+
+## Conclusion
+
+For qwen3.5:4b on this machine, the **GTX 1080 Ti is the clear choice**. It is 7.6x faster than the CPU overall and 14x faster at reading long prompts. With this prompt, that's the difference between a reply in about 2 seconds and one in about 30. The CPU works as a fallback but feels slow for interactive use, especially with long prompts or documents. The iGPU isn't worth using for this workload.
+
+Under sustained load the 1080 Ti reaches its 84°C limit after about a minute and loses about 5% generation speed. Lowering its power limit or improving its cooling should recover most of that.
+
+---
+
+## Original output
+
+The terminal output exactly as it was printed, with the extra whitespace removed.
+
+```text
+root@local-ai:~# bash bench-ollama.sh \
+  --model qwen3.5:4b \
+  --prompt-file max-prompt.txt \
+  --runs 5 \
+  --label CPU-i5-12600K-max \
+  --context 8192 \
+  --tokens 1024 \
+  --threads 6 \
+  --gpu-layers 0 \
+  --output cpu-max-results.jsonl
+Model: qwen3.5:4b | Runs: 5 | Cold: true | Ollama: 0.40.16
+Results: cpu-max-results.jsonl
+
+Run 1/5 [CPU-i5-12600K-max]
+  Generation: 8.04 tokens/s | Total: 159.92s | Load: 2.05s | Tokens: 1024 | Truncated: true
+
+Run 2/5 [CPU-i5-12600K-max]
+  Generation: 8.02 tokens/s | Total: 162.13s | Load: 2.05s | Tokens: 1024 | Truncated: true
+
+Run 3/5 [CPU-i5-12600K-max]
+  Generation: 8.03 tokens/s | Total: 164.72s | Load: 2.05s | Tokens: 1024 | Truncated: true
+
+Run 4/5 [CPU-i5-12600K-max]
+  Generation: 8.05 tokens/s | Total: 163.97s | Load: 2.05s | Tokens: 1024 | Truncated: true
+
+Run 5/5 [CPU-i5-12600K-max]
+  Generation: 8.03 tokens/s | Total: 159.9s | Load: 2.05s | Tokens: 1024 | Truncated: true
+{
+  "model": "qwen3.5:4b",
+  "label": "CPU-i5-12600K-max",
+  "ollama_version": "0.40.16",
+  "runs": 5,
+  "cold_start_requested": true,
+  "settings": {
+    "think": false,
+    "keep_alive": "10m",
+    "options": {
+      "num_ctx": 8192,
+      "num_predict": 1024,
+      "temperature": 0,
+      "seed": 42,
+      "num_thread": 6,
+      "num_gpu": 0
+    }
+  },
+  "generation_tokens_per_second": {
+    "min": 8.019711071425723,
+    "median": 8.034397578476508,
+    "mean": 8.036775967682777,
+    "max": 8.054389467249724
+  },
+  "total_seconds": {
+    "min": 159.904445113,
+    "median": 162.125981033,
+    "mean": 162.1268670028,
+    "max": 164.717121911
+  },
+  "load_seconds": {
+    "min": 2.048052195,
+    "median": 2.048900658,
+    "mean": 2.048963692,
+    "max": 2.049876087
+  },
+  "prompt_seconds": {
+    "min": 30.32437,
+    "median": 32.376804,
+    "mean": 32.6469946,
+    "max": 35.199597
+  },
+  "output_tokens": {
+    "min": 1024,
+    "median": 1024,
+    "mean": 1024,
+    "max": 1024
+  },
+  "truncated_runs": 5,
+  "results_file": "cpu-max-results.jsonl"
+}
+
+root@local-ai:~# bash bench-ollama.sh \
+  --model qwen3.5:4b \
+  --prompt-file max-prompt.txt \
+  --runs 5 \
+  --label dGPU-GTX1080Ti-max \
+  --context 8192 \
+  --tokens 1024 \
+  --threads 6 \
+  --gpu-layers 999 \
+  --output dgpu-max-results.jsonl
+Model: qwen3.5:4b | Runs: 5 | Cold: true | Ollama: 0.40.16
+Results: dgpu-max-results.jsonl
+
+Run 1/5 [dGPU-GTX1080Ti-max]
+  Generation: 62.33 tokens/s | Total: 20.79s | Load: 2.12s | Tokens: 1024 | Truncated: true
+
+Run 2/5 [dGPU-GTX1080Ti-max]
+  Generation: 61.75 tokens/s | Total: 21.3s | Load: 2.44s | Tokens: 1024 | Truncated: true
+
+Run 3/5 [dGPU-GTX1080Ti-max]
+  Generation: 61.17 tokens/s | Total: 21.33s | Load: 2.28s | Tokens: 1024 | Truncated: true
+
+Run 4/5 [dGPU-GTX1080Ti-max]
+  Generation: 60.17 tokens/s | Total: 21.59s | Load: 2.21s | Tokens: 1024 | Truncated: true
+
+Run 5/5 [dGPU-GTX1080Ti-max]
+  Generation: 59.02 tokens/s | Total: 22.15s | Load: 2.44s | Tokens: 1024 | Truncated: true
+{
+  "model": "qwen3.5:4b",
+  "label": "dGPU-GTX1080Ti-max",
+  "ollama_version": "0.40.16",
+  "runs": 5,
+  "cold_start_requested": true,
+  "settings": {
+    "think": false,
+    "keep_alive": "10m",
+    "options": {
+      "num_ctx": 8192,
+      "num_predict": 1024,
+      "temperature": 0,
+      "seed": 42,
+      "num_thread": 6,
+      "num_gpu": 999
+    }
+  },
+  "generation_tokens_per_second": {
+    "min": 59.02094171370763,
+    "median": 61.1709944348732,
+    "mean": 60.88935037100312,
+    "max": 62.33100931570602
+  },
+  "total_seconds": {
+    "min": 20.791523614,
+    "median": 21.328518168,
+    "mean": 21.432858732,
+    "max": 22.153841412
+  },
+  "load_seconds": {
+    "min": 2.117931668,
+    "median": 2.281897777,
+    "mean": 2.2982471159999998,
+    "max": 2.440448877
+  },
+  "prompt_seconds": {
+    "min": 2.232357,
+    "median": 2.293965,
+    "mean": 2.296467,
+    "max": 2.348637
+  },
+  "output_tokens": {
+    "min": 1024,
+    "median": 1024,
+    "mean": 1024,
+    "max": 1024
+  },
+  "truncated_runs": 5,
+  "results_file": "dgpu-max-results.jsonl"
+}
+```
+
+### dGPU re-run (monitored)
+
+```text
+root@local-ai:~# bash bench-ollama.sh --model qwen3.5:4b --prompt-file max-prompt.txt --runs 5 --label dGPU-GTX1080Ti-max --context 8192 --tokens 1024 --threads 6 --gpu-layers 999 --output dgpu-max-results.jsonl
+Model: qwen3.5:4b | Runs: 5 | Cold: true | Ollama: 0.40.16
+Results: dgpu-max-results.jsonl
+
+Run 1/5 [dGPU-GTX1080Ti-max]
+  Generation: 62.63 tokens/s | Total: 21.16s | Load: 2.59s | Tokens: 1024 | Truncated: true
+
+Run 2/5 [dGPU-GTX1080Ti-max]
+  Generation: 62 tokens/s | Total: 21.17s | Load: 2.39s | Tokens: 1024 | Truncated: true
+
+Run 3/5 [dGPU-GTX1080Ti-max]
+  Generation: 61.76 tokens/s | Total: 21.39s | Load: 2.52s | Tokens: 1024 | Truncated: true
+
+Run 4/5 [dGPU-GTX1080Ti-max]
+  Generation: 61.12 tokens/s | Total: 21.52s | Load: 2.44s | Tokens: 1024 | Truncated: true
+
+Run 5/5 [dGPU-GTX1080Ti-max]
+  Generation: 59.29 tokens/s | Total: 21.8s | Load: 2.17s | Tokens: 1024 | Truncated: true
+{
+  "model": "qwen3.5:4b",
+  "label": "dGPU-GTX1080Ti-max",
+  "ollama_version": "0.40.16",
+  "runs": 5,
+  "cold_start_requested": true,
+  "settings": {
+    "think": false,
+    "keep_alive": "10m",
+    "options": {
+      "num_ctx": 8192,
+      "num_predict": 1024,
+      "temperature": 0,
+      "seed": 42,
+      "num_thread": 6,
+      "num_gpu": 999
+    }
+  },
+  "generation_tokens_per_second": {
+    "min": 59.29453745020403,
+    "median": 61.76083021996023,
+    "mean": 61.35972980308132,
+    "max": 62.63080832703508
+  },
+  "total_seconds": {
+    "min": 21.160006445,
+    "median": 21.387487535,
+    "mean": 21.4062098724,
+    "max": 21.799120303
+  },
+  "load_seconds": {
+    "min": 2.171668153,
+    "median": 2.440428742,
+    "mean": 2.4217590188,
+    "max": 2.585330207
+  },
+  "prompt_seconds": {
+    "min": 2.205774,
+    "median": 2.277402,
+    "mean": 2.2752618,
+    "max": 2.343769
+  },
+  "output_tokens": {
+    "min": 1024,
+    "median": 1024,
+    "mean": 1024,
+    "max": 1024
+  },
+  "truncated_runs": 5,
+  "results_file": "dgpu-max-results.jsonl"
+}
+root@local-ai:~#
+```
