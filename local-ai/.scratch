@@ -1,0 +1,30 @@
+bash bench-ollama.sh \
+  --model qwen3.5:4b \
+  --runs 5 \
+  --label CPU \
+  --gpu-layers 0 \
+  --threads 6 \
+  --output cpu-results.jsonl
+
+
+bash bench-ollama.sh \
+  --model qwen3.5:4b \
+  --runs 5 \
+  --label iGPU \
+  --gpu-layers 999 \
+  --threads 6 \
+  --output igpu-results.jsonl
+
+
+  # random
+
+  bash bench-ollama.sh \
+  --model qwen3.5:4b \
+  --prompt 'Explain photosynthesis in 200 words.' \
+  --runs 3 \
+  --context 8192 \
+  --tokens 500 \
+  --think false \
+  --cold true
+
+--gpu-layers 999 requests full offloading but does not select a GPU or guarantee acceleration. Verify with ollama ps. Compare median generation tokens/second; complete answers and settings are saved in the results file.
