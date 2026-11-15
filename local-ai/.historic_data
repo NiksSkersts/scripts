@@ -13,7 +13,7 @@
 | Kernel     | x86_64 Linux 7.0.14-25-pve |
 | CPU        | 12th Gen Intel Core i5-12600K, 16 threads, up to 4.9 GHz |
 | iGPU       | Integrated graphics of the i5-12600K |
-| RAM        | 96281 MiB total (52587 MiB in use when captured) |
+| RAM        | DDR4, 96281 MiB total (52587 MiB in use when captured) |
 | Disk       | 20G / 8.6T used (1%) |
 | Shell      | bash 5.2.37 |
 | Packages   | 870 |
