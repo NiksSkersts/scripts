@@ -6,7 +6,6 @@ bash bench-ollama.sh \
   --threads 6 \
   --output cpu-results.jsonl
 
-
 bash bench-ollama.sh \
   --model qwen3.5:4b \
   --runs 5 \
@@ -15,6 +14,13 @@ bash bench-ollama.sh \
   --threads 6 \
   --output igpu-results.jsonl
 
+bash bench-ollama.sh \
+  --model qwen3.5:4b \
+  --runs 5 \
+  --label dGPU \
+  --gpu-layers 999 \
+  --threads 6 \
+  --output dgpu-results.jsonl
 
   # random
 
